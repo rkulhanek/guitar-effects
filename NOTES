@@ -1,0 +1,9 @@
+# packages (incomplete list, some possibly unnecessary)
+apt install a2jmidid
+apt install python3-rtmidi
+pip3 uninstall rtmidi python3-rtmidi
+pip3 install mido
+pip3 install python3-rtmidi
+
+# run
+a2jmidid -e
