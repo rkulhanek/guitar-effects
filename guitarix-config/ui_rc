@@ -1,7 +1,7 @@
 {
   "system.mainwin_visible": 0,
-  "system.mainwin_x": 178,
-  "system.mainwin_y": 36,
+  "system.mainwin_x": 200,
+  "system.mainwin_y": 7,
   "system.mainwin_height": 830,
   "system.mainwin_rack_height": 830,
   "system.preset_window_height": 209,
@@ -12,7 +12,7 @@
   "system.show_value": 1,
   "system.show_tooltips": 1,
   "system.animations": 1,
-  "system.show_presets": 1,
+  "system.show_presets": 0,
   "system.show_toolbar": 1,
   "system.show_rack": 1,
   "system.midiout": 0
