@@ -15,6 +15,6 @@ cat > "$AUTOSTART" <<-EOF
 	Encoding=UTF-8
 	Name=Start
 	Type=Application
-	Exec=$DIR/start
+	Exec=$DIR/start.sh
 EOF
 chmod u+x "$AUTOSTART"

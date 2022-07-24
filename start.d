@@ -10,6 +10,12 @@ synchronized class Global {
 	
 void error(string err) {
 	//TODO: set red LED and terminate
+	
+	/* TODO: This should be set if:
+	   "ERROR" appears in the log
+	   "TRACEBACK" appears in log (python exception)
+	   A process terminates with an error code
+	 */
 }
 
 struct Process {

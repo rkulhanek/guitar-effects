@@ -1,0 +1,3 @@
+TODO: turn on the yellow LED (and turn the rest off) as soon in boot process as possible.
+And maybe do the same during power off, but only if it stays on until the very end
+

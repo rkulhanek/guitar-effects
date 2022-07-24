@@ -8,7 +8,7 @@
 # of some kind; jack's midi monitor program prints it differently.
 # 64 works.
 
-import rtmidi, time, sys, time, atexit, busio, board, digitalio
+import rtmidi, time, sys, time, atexit, busio, board, digitalio, os
 import RPi.GPIO as gpio
 import adafruit_mcp3xxx.mcp3008 as MCP
 from adafruit_mcp3xxx.analog_in import AnalogIn
@@ -28,12 +28,20 @@ TOGGLE_PEDAL = { # GPIO number -> MIDI controller number
 	19: PinInfo(43, 23),
 }
 POWER_LIGHT = 26
+POWER_BUTTON = 3
 
 # TODO: have different default values for each pedal
 # TODO: maybe have buttons that set all options at once, e.g. to toggle between dirty and clean
 state = { k : True for k in TOGGLE_PEDAL.keys() }
 skip_next = { k : False for k in TOGGLE_PEDAL.keys() }
 midi_out = None
+
+def shutdown() -> None:
+	if midi_out:
+		midi_out.delete()
+	gpio.cleanup()
+
+	os.system("shutdown -h now")
 
 def status(color: str) -> None:
 	# TODO: actually use this. Monitor the jackd logfile. Yellow if we've got recent xruns, red on error
@@ -152,11 +160,12 @@ try:
 		# TODO: if adc difference exceeds (small) threshold, send midi signal
 		# TODO: when toggle pedals pressed, send signal
 		#print(f"{adc01(adc_chan6):.6f} --- {adc01(adc_chan7):.6f}")
+		if gpio.input(POWER_BUTTON):
+			shutdown()
 		time.sleep(0.1)
 except KeyboardInterrupt:
 	# TODO: make this happen on shutdown, too. Trivial once
 	# all the code is in the one script.
 	if midi_out:
 		midi_out.delete()
-		del midi_out
 
