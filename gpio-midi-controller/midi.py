@@ -79,6 +79,11 @@ def toggle(pin: int) -> None:
 		state[pin] = not state[pin]
 	skip_next[pin] = not skip_next[pin]
 
+def change_preset(preset: int) -> None:
+	buf = [ 0xC0 | MIDI_CHANNEL, preset ]
+	print(f"Send {buf}")
+	midi_out.send_message(buf)
+
 def setup_gpio() -> None:
 	global state, adc_chan6, adc_chan7
 	gpio.setmode(gpio.BCM)
@@ -140,12 +145,13 @@ try:
 	setup_gpio()
 	status('green')
 	print("ready")
+	#change_preset(1)
 	while True:
 		# TODO: see if preset toggle switches have changed
 		# TODO: shutdown if power button off (be sure to call gpio.cleanup()
 		# TODO: if adc difference exceeds (small) threshold, send midi signal
 		# TODO: when toggle pedals pressed, send signal
-		print(f"{adc01(adc_chan6):.6f} --- {adc01(adc_chan7):.6f}")
+		#print(f"{adc01(adc_chan6):.6f} --- {adc01(adc_chan7):.6f}")
 		time.sleep(0.1)
 except KeyboardInterrupt:
 	# TODO: make this happen on shutdown, too. Trivial once
