@@ -11,8 +11,10 @@
 import rtmidi, time, sys, time, atexit, busio, board, digitalio, os
 import RPi.GPIO as gpio
 import adafruit_mcp3xxx.mcp3008 as MCP
+from enum import IntEnum
 from adafruit_mcp3xxx.analog_in import AnalogIn
 from collections import namedtuple
+from typing import List
 
 atexit.register(gpio.cleanup)
 
@@ -21,14 +23,27 @@ assert 0 <= MIDI_CHANNEL <= 0xF
 
 PinInfo = namedtuple("PinInfo", "midi led")
 
+Rheostat = namedtuple("Rheostat", "adc_chan midi_controller prev ")
+class Rheostat:
+	def __init__(self, adc_chan: AnalogIn, midi_controller: int):
+		self.adc_chan = adc_chan
+		self.midi_controller = midi_controller
+		self.prev = -1
+		
+
+LED = IntEnum('LED', 
+	{'BLUE0': 14, 'BLUE1': 15, 'BLUE2': 18, 'BLUE3': 23, 
+	'RED': 17, 'YELLOW': 27, 'GREEN': 22, 'POWER': 26 })
+
 TOGGLE_PEDAL = { # GPIO number -> MIDI controller number
-	5: PinInfo(40, 14),
-	6: PinInfo(41, 15),
-	13: PinInfo(42, 18),
-	19: PinInfo(43, 23),
+	5: PinInfo(40, LED.BLUE0),
+	6: PinInfo(41, LED.BLUE1),
+	13: PinInfo(42, LED.BLUE2),
+	19: PinInfo(43, LED.BLUE3),
 }
-POWER_LIGHT = 26
+rheostat_pedal: List[Rheostat] = []
 POWER_BUTTON = 3
+
 
 # TODO: have different default values for each pedal
 # TODO: maybe have buttons that set all options at once, e.g. to toggle between dirty and clean
@@ -40,23 +55,25 @@ def shutdown() -> None:
 	if midi_out:
 		midi_out.delete()
 	gpio.cleanup()
-
+	
+	# NOTE: not turning on yellow LED here because it turns off
+	# *before* the shutdown sequence is complete
 	os.system("shutdown -h now")
 
 def status(color: str) -> None:
 	# TODO: actually use this. Monitor the jackd logfile. Yellow if we've got recent xruns, red on error
 	if 'red' == color:
-		gpio.output(27, 0)
-		gpio.output(22, 0)
-		gpio.output(17, 1)
+		gpio.output(LED.RED, 1)
+		gpio.output(LED.YELLOW, 0)
+		gpio.output(LED.GREEN, 0)
 	if 'yellow' == color:
-		gpio.output(17, 0)
-		gpio.output(22, 0)
-		gpio.output(27, 1)
+		gpio.output(LED.RED, 0)
+		gpio.output(LED.YELLOW, 1)
+		gpio.output(LED.GREEN, 0)
 	elif 'green' == color:
-		gpio.output(17, 0)
-		gpio.output(27, 0)
-		gpio.output(22, 1)
+		gpio.output(LED.RED, 0)
+		gpio.output(LED.YELLOW, 0)
+		gpio.output(LED.GREEN, 1)
 	else:
 		assert(0)
 
@@ -72,6 +89,15 @@ def adc01(chan: AnalogIn) -> float:
 		v = 0.0
 	return v / (MAX_VAL - MIN_VAL)
 
+def update_rheostats() -> None:
+	threshold = 1
+	for pedal in rheostat_pedal:
+		val = int(0x7F * adc01(pedal.adc_chan))
+		if abs(val - pedal.prev) > threshold:
+			pedal.prev = val
+			buf = [ 0xB0 | MIDI_CHANNEL, pedal.midi_controller, val ]
+			midi_out.send_message(buf)
+
 def toggle(pin: int) -> None:
 	# We see a rising edge when it's pressed *and* when it's released
 	global state, skip_next
@@ -80,33 +106,31 @@ def toggle(pin: int) -> None:
 
 		assert midi_out is not None
 		assert 0 <= controller <= 127
-		buf = [ 0xB0 | MIDI_CHANNEL, controller, 64 if state[pin] else 0x00 ]
+		buf = [ 0xB0 | MIDI_CHANNEL, controller, 0x7F if state[pin] else 0x00 ]
 		gpio.output(TOGGLE_PEDAL[pin].led, int(state[pin]))
-		print(f"{buf}    led {TOGGLE_PEDAL[pin].led} = {int(state[pin])}")
+		#print(f"{buf}    led {TOGGLE_PEDAL[pin].led} = {int(state[pin])}")
 		midi_out.send_message(buf)
 		state[pin] = not state[pin]
 	skip_next[pin] = not skip_next[pin]
 
 def change_preset(preset: int) -> None:
 	buf = [ 0xC0 | MIDI_CHANNEL, preset ]
-	print(f"Send {buf}")
+	#print(f"Send {buf}")
 	midi_out.send_message(buf)
 
 def setup_gpio() -> None:
-	global state, adc_chan6, adc_chan7
+	global state, rheostat_pedal
 	gpio.setmode(gpio.BCM)
 	#gpio.setup(16, gpio.OUT)
 
-	# RYG pins
-	gpio.setup(17, gpio.OUT)
-	gpio.setup(22, gpio.OUT)
-	gpio.setup(27, gpio.OUT)
+	# set up LED pins
+	for pin in LED:
+		gpio.setup(pin, gpio.OUT)
+		gpio.output(pin, 0)
 
 	# Toggle pedals
 	for pin in TOGGLE_PEDAL.keys():
 		gpio.setup(pin, gpio.IN, pull_up_down=gpio.PUD_UP)
-		gpio.setup(TOGGLE_PEDAL[pin].led, gpio.OUT)
-		gpio.output(TOGGLE_PEDAL[pin].led, 0)
 
 		# TODO: This is picking up false positives. Set it up so it needs to receive a rising edge,
 		# and then *stay* high for at least 50ms.
@@ -128,16 +152,15 @@ def setup_gpio() -> None:
 		skip_next[k] = False
 	
 	# Power button
-	gpio.setup(POWER_LIGHT, gpio.OUT)
-	gpio.output(POWER_LIGHT, 1) # LED
+	gpio.output(LED.POWER, 1) # LED
 	gpio.setup(3, gpio.IN) # Button
 
 	# MCP3008 ADC
 	spi = busio.SPI(clock=board.SCK, MISO=board.MISO, MOSI=board.MOSI)
 	cs = digitalio.DigitalInOut(board.D0)
 	mcp = MCP.MCP3008(spi, cs)
-	adc_chan6 = AnalogIn(mcp, MCP.P6)
-	adc_chan7 = AnalogIn(mcp, MCP.P7)
+	rheostat_pedal.append(Rheostat(AnalogIn(mcp, MCP.P6), 44))
+	rheostat_pedal.append(Rheostat(AnalogIn(mcp, MCP.P7), 45))
 
 def setup_midi() -> None:
 	global midi_out
@@ -153,16 +176,15 @@ try:
 	setup_gpio()
 	status('green')
 	print("ready")
-	#change_preset(1)
+	change_preset(0) # TODO: This won't work until after connect_midi runs. Need to call that from here instead of from start.d. And need to read the output from it (and retry), because it has failed on startup before.
 	while True:
 		# TODO: see if preset toggle switches have changed
-		# TODO: shutdown if power button off (be sure to call gpio.cleanup()
-		# TODO: if adc difference exceeds (small) threshold, send midi signal
 		# TODO: when toggle pedals pressed, send signal
 		#print(f"{adc01(adc_chan6):.6f} --- {adc01(adc_chan7):.6f}")
+		update_rheostats()
 		if gpio.input(POWER_BUTTON):
 			shutdown()
-		time.sleep(0.1)
+		time.sleep(0.05)
 except KeyboardInterrupt:
 	# TODO: make this happen on shutdown, too. Trivial once
 	# all the code is in the one script.
