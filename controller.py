@@ -8,7 +8,7 @@
 # of some kind; jack's midi monitor program prints it differently.
 # 64 works.
 
-import rtmidi, time, sys, time, atexit, busio, board, digitalio, os
+import rtmidi, time, sys, time, atexit, busio, board, digitalio, os, subprocess, sys
 import RPi.GPIO as gpio
 import adafruit_mcp3xxx.mcp3008 as MCP
 from enum import IntEnum
@@ -32,14 +32,14 @@ class Rheostat:
 		
 
 LED = IntEnum('LED', 
-	{'BLUE0': 14, 'BLUE1': 15, 'BLUE2': 18, 'BLUE3': 23, 
+	{'BLUE0': 23, 'BLUE1': 18, 'BLUE2': 15, 'BLUE3': 14, 
 	'RED': 17, 'YELLOW': 27, 'GREEN': 22, 'POWER': 26 })
 
 TOGGLE_PEDAL = { # GPIO number -> MIDI controller number
-	5: PinInfo(40, LED.BLUE0),
-	6: PinInfo(41, LED.BLUE1),
-	13: PinInfo(42, LED.BLUE2),
-	19: PinInfo(43, LED.BLUE3),
+	19: PinInfo(40, LED.BLUE0),
+	13: PinInfo(41, LED.BLUE1),
+	6: PinInfo(42, LED.BLUE2),
+	5: PinInfo(43, LED.BLUE3),
 }
 rheostat_pedal: List[Rheostat] = []
 POWER_BUTTON = 3
@@ -66,7 +66,7 @@ def status(color: str) -> None:
 		gpio.output(LED.RED, 1)
 		gpio.output(LED.YELLOW, 0)
 		gpio.output(LED.GREEN, 0)
-	if 'yellow' == color:
+	elif 'yellow' == color:
 		gpio.output(LED.RED, 0)
 		gpio.output(LED.YELLOW, 1)
 		gpio.output(LED.GREEN, 0)
@@ -146,10 +146,10 @@ def setup_gpio() -> None:
 		
 		gpio.add_event_detect(pin, gpio.RISING, callback=toggle, bouncetime=20)
 
-	for k in TOGGLE_PEDAL.keys():
-		state[k] = not state # Lets us initialize state with the desired values instead of inverse
-		toggle(k)
-		skip_next[k] = False
+	#for k in TOGGLE_PEDAL.keys():
+	#	state[k] = not state # Lets us initialize state with the desired values instead of inverse
+	#	toggle(k)
+	#	skip_next[k] = False
 	
 	# Power button
 	gpio.output(LED.POWER, 1) # LED
@@ -159,21 +159,31 @@ def setup_gpio() -> None:
 	spi = busio.SPI(clock=board.SCK, MISO=board.MISO, MOSI=board.MOSI)
 	cs = digitalio.DigitalInOut(board.D0)
 	mcp = MCP.MCP3008(spi, cs)
-	rheostat_pedal.append(Rheostat(AnalogIn(mcp, MCP.P6), 44))
-	rheostat_pedal.append(Rheostat(AnalogIn(mcp, MCP.P7), 45))
+	rheostat_pedal.append(Rheostat(AnalogIn(mcp, MCP.P6), 45))
+	rheostat_pedal.append(Rheostat(AnalogIn(mcp, MCP.P7), 44))
 
 def setup_midi() -> None:
 	global midi_out
 	midi_out = rtmidi.MidiOut()
 	midi_out.open_virtual_port("gpio")
 
+	dir = os.path.dirname(sys.argv[0])
+	MAX_ATTEMPTS = 4
+	for attempt in range(MAX_ATTEMPTS):
+		if attempt > 0:
+			sys.stderr.write(f"Attempt {attempt+1}...\n")
+		r = subprocess.run(f"{dir}/connect_midi.sh")
+		if 0 == r.returncode:
+			return
+		status('red')
+		sys.stderr.write(f"Failed to connect midi.\n")
+	exit(1)
+
 try:
-	sys.stderr.write("setup_midi\n")
-	sys.stderr.flush();
-	setup_midi()
 	sys.stderr.write("setup_gpio\n")
-	sys.stderr.flush();
 	setup_gpio()
+	sys.stderr.write("setup_midi\n")
+	setup_midi()
 	status('green')
 	print("ready")
 	change_preset(0) # TODO: This won't work until after connect_midi runs. Need to call that from here instead of from start.d. And need to read the output from it (and retry), because it has failed on startup before.

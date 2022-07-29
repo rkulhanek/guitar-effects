@@ -90,14 +90,10 @@ void main() {
 		null,
 		`buffer size`/*TODO: change to `^Ctrl-C to quit`*/);
 		//NOTE: buffer_size shows up in stderr, not stdout
-	start_process("midi.py", // TODO: merge all the hardware controllers into this: adc, shutdown.
-		"gpio-midi-controller/midi.py",
+	start_process("controller.py", // TODO: merge all the hardware controllers into this: adc, shutdown.
+		"./controller.py",
 		null,
 		`^ready$`);
-	start_process("connect_midi.sh",
-		"./connect_midi.sh",
-		null,
-		`^done$`);
 	writef("### All processes started ####\n");
 
 	// `guitarix -N` starts in no-gui mode, and prints "Ctrl-C to quit" to stdout.
