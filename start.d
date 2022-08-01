@@ -74,7 +74,7 @@ void jackd_callback(string name, string line) {
 void main() {
 	// TODO: set performance mode
 	start_process("performance",
-		"./performance_mode",
+		"./performance_mode.sh",
 		null,
 		null);
 	start_process("jackd",
