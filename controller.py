@@ -14,7 +14,7 @@ import adafruit_mcp3xxx.mcp3008 as MCP
 from enum import IntEnum
 from adafruit_mcp3xxx.analog_in import AnalogIn
 from collections import namedtuple
-from typing import List
+from typing import List, Optional
 
 atexit.register(gpio.cleanup)
 
@@ -42,8 +42,10 @@ TOGGLE_PEDAL = { # GPIO number -> MIDI controller number
 	5: PinInfo(43, LED.BLUE3),
 }
 rheostat_pedal: List[Rheostat] = []
+switches = [ 25, 8, 7, 1 ]
 POWER_BUTTON = 3
 
+MAX_VALID_PRESET = 8
 
 # TODO: have different default values for each pedal
 # TODO: maybe have buttons that set all options at once, e.g. to toggle between dirty and clean
@@ -60,7 +62,7 @@ def shutdown() -> None:
 	# *before* the shutdown sequence is complete
 	os.system("shutdown -h now")
 
-def status(color: str) -> None:
+def status_led(color: str) -> None:
 	# TODO: actually use this. Monitor the jackd logfile. Yellow if we've got recent xruns, red on error
 	if 'red' == color:
 		gpio.output(LED.RED, 1)
@@ -77,6 +79,32 @@ def status(color: str) -> None:
 	else:
 		assert(0)
 
+def set_status(severity: str, source: str, msg: Optional[str]) -> None:
+	for a in [ 'Error', 'Warning' ]:
+		if a not in set_status.__dict__:
+			set_status.__dict__[a]: Dict[str,str] = {}
+
+	info = set_status.__dict__[severity]
+	if msg is None:
+		if source in info:
+			del info[source]
+	else:
+		info[source] = msg
+		print(f"{severity}: {msg} ({source})")
+
+	if len(set_status.Error):
+		status_led('red')
+	elif len(set_status.Warning):
+		status_led('yellow')
+	else:
+		status_led('green')
+
+def error(source: str, msg: Optional[str]) -> None:
+	set_status('Error', source, msg)
+
+def warning(source: str, msg: Optional[str]) -> None:
+	set_status('Warning', source, msg)
+
 def adc01(chan: AnalogIn) -> float:
 	""" Returns value of MCP3008 channel `chan` normalized to [0,1] """
 	MIN_VAL = 13300 # These were measured with a 5.1k resistor wired into the circuit.
@@ -90,6 +118,7 @@ def adc01(chan: AnalogIn) -> float:
 	return v / (MAX_VAL - MIN_VAL)
 
 def update_rheostats() -> None:
+	""" Send midi signal if rheostat pedals have changed beyond a given threshold """
 	threshold = 1
 	for pedal in rheostat_pedal:
 		val = int(0x7F * adc01(pedal.adc_chan))
@@ -99,6 +128,8 @@ def update_rheostats() -> None:
 			midi_out.send_message(buf)
 
 def toggle(pin: int) -> None:
+	""" Send midi signal and set LED if pedal button pressed """
+
 	# We see a rising edge when it's pressed *and* when it's released
 	global state, skip_next
 	if not skip_next[pin]:
@@ -113,10 +144,22 @@ def toggle(pin: int) -> None:
 		state[pin] = not state[pin]
 	skip_next[pin] = not skip_next[pin]
 
-def change_preset(preset: int) -> None:
-	buf = [ 0xC0 | MIDI_CHANNEL, preset ]
-	#print(f"Send {buf}")
-	midi_out.send_message(buf)
+def update_switches() -> None:
+	""" Change presets if the switches have moved """
+	preset = sum([ 2**idx * gpio.input(pin) for idx,pin in enumerate(switches) ])
+	if preset != update_switches.__dict__.get('prev'):
+		update_switches.prev = preset
+
+		if preset <= MAX_VALID_PRESET:
+			# send midi change program signal
+			buf = [ 0xC0 | MIDI_CHANNEL, preset ]
+			#print(f"Send {buf}")
+			midi_out.send_message(buf)
+			warning('update_switches', None)
+		else:
+			warning('update_switches', f'Invalid preset number: {preset}')
+		
+
 
 def setup_gpio() -> None:
 	global state, rheostat_pedal
@@ -127,6 +170,9 @@ def setup_gpio() -> None:
 	for pin in LED:
 		gpio.setup(pin, gpio.OUT)
 		gpio.output(pin, 0)
+		
+	for pin in switches:
+		gpio.setup(pin, gpio.IN, pull_up_down=gpio.PUD_UP)
 
 	# Toggle pedals
 	for pin in TOGGLE_PEDAL.keys():
@@ -175,8 +221,7 @@ def setup_midi() -> None:
 		r = subprocess.run(f"{dir}/connect_midi.sh")
 		if 0 == r.returncode:
 			return
-		status('red')
-		sys.stderr.write(f"Failed to connect midi.\n")
+		error('setup_midi', 'Failed to connect midi.\n')
 	exit(1)
 
 try:
@@ -184,14 +229,14 @@ try:
 	setup_gpio()
 	sys.stderr.write("setup_midi\n")
 	setup_midi()
-	status('green')
+	status_led('green')
 	print("ready")
-	change_preset(0) # TODO: This won't work until after connect_midi runs. Need to call that from here instead of from start.d. And need to read the output from it (and retry), because it has failed on startup before.
 	while True:
 		# TODO: see if preset toggle switches have changed
 		# TODO: when toggle pedals pressed, send signal
 		#print(f"{adc01(adc_chan6):.6f} --- {adc01(adc_chan7):.6f}")
 		update_rheostats()
+		update_switches()
 		if gpio.input(POWER_BUTTON):
 			shutdown()
 		time.sleep(0.05)
