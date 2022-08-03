@@ -10,6 +10,6 @@
   ["AJFA", "AJFA.gx", 1, 0, [1, 2], 1655845126],
   ["80s_Hard_n_Heavy", "80s_Hard_n_Heavy.gx", 1, 0, [1, 2], 1655845092],
   ["metalpack-v1", "metalpack-v1.gx", 1, 0, [1, 2], 1655844965],
-  ["Presets", "Presets.gx", 1, 0, [1, 2], 1659394095],
-  ["Scratchpad", "scratchpad.gx", 0, 0, [1, 2], 1659394665]
+  ["Presets", "Presets.gx", 1, 0, [1, 2], 1659396715],
+  ["Scratchpad", "scratchpad.gx", 0, 0, [1, 2], 1659396928]
 ]

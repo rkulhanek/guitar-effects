@@ -49,7 +49,7 @@ MAX_VALID_PRESET = 8
 
 # TODO: have different default values for each pedal
 # TODO: maybe have buttons that set all options at once, e.g. to toggle between dirty and clean
-state = { k : True for k in TOGGLE_PEDAL.keys() }
+state = { k : False for k in TOGGLE_PEDAL.keys() }
 skip_next = { k : False for k in TOGGLE_PEDAL.keys() }
 midi_out = None
 
@@ -127,21 +127,24 @@ def update_rheostats() -> None:
 			buf = [ 0xB0 | MIDI_CHANNEL, pedal.midi_controller, val ]
 			midi_out.send_message(buf)
 
+def pedal_send_message(pin: int) -> None:
+	controller = TOGGLE_PEDAL[pin].midi
+	assert midi_out is not None
+	assert 0 <= controller <= 127
+	buf = [ 0xB0 | MIDI_CHANNEL, controller, 0x7F if state[pin] else 0x00 ]
+	#print(f"{buf}    led {TOGGLE_PEDAL[pin].led} = {int(state[pin])}")
+	midi_out.send_message(buf)
+
 def toggle(pin: int) -> None:
 	""" Send midi signal and set LED if pedal button pressed """
 
-	# We see a rising edge when it's pressed *and* when it's released
+	# We see a rising edge when it's pressed *and* when it's released,
+	# so we only toggle every other time.
 	global state, skip_next
 	if not skip_next[pin]:
-		controller = TOGGLE_PEDAL[pin].midi
-
-		assert midi_out is not None
-		assert 0 <= controller <= 127
-		buf = [ 0xB0 | MIDI_CHANNEL, controller, 0x7F if state[pin] else 0x00 ]
-		gpio.output(TOGGLE_PEDAL[pin].led, int(state[pin]))
-		#print(f"{buf}    led {TOGGLE_PEDAL[pin].led} = {int(state[pin])}")
-		midi_out.send_message(buf)
 		state[pin] = not state[pin]
+		pedal_send_message(pin)
+		gpio.output(TOGGLE_PEDAL[pin].led, int(state[pin]))
 	skip_next[pin] = not skip_next[pin]
 
 def update_switches() -> None:
@@ -158,7 +161,16 @@ def update_switches() -> None:
 			warning('update_switches', None)
 		else:
 			warning('update_switches', f'Invalid preset number: {preset}')
-		
+
+		# The pedal settings all get reset when we load a new bank, so we need
+		# to set them again.
+		# Without the delay, it was only changing *some* of the settings that
+		# were tied to channel 40. sleep(0.1) seemed to fix it, added another 0.1
+		# to play it safe.
+		# TODO: replace kludge if possible
+		time.sleep(0.2)
+		for pin in TOGGLE_PEDAL.keys():
+			pedal_send_message(pin)
 
 
 def setup_gpio() -> None:
