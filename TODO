@@ -1,4 +1,5 @@
 Put /boot/config.txt in repo. Possibly as part of create_symlinks.sh/install.sh
+Maybe /boot/cmdline.txt, too
 
 
 run pycheck
@@ -7,6 +8,13 @@ disable wifi autoconnect
 
 date in log is showing Jan 01. Also, log being overwritten. Set it up to prune, but keep the last day or two.
 
-There was a checklist somewhere online for realtime audio. Find it. When the CPU wasn't getting set to performance,
-the audio was cutting out periodically, but was *not* reporting XRUNs. And I still *rarely* get that same behavior.
-So more CPU could help.
+
+rtqcs says that the spectre/meltdown mitigations can slow things down a bit. Turn them off after I finish everything else and disable networking
+
+
+The guitar is going through to output even when all the software's turned off. Maybe that's where the noise and/or choppiness comes from.
+
+out_1 should go to playback_1 (or was it 0 based?)
+Where is that stored? Need to put that config into the repo
+
+

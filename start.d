@@ -78,7 +78,8 @@ void main() {
 		null,
 		null);
 	start_process("jackd",
-		"/usr/bin/jackd -P95 -dalsa -r96000 -p128 -n3 -D -Chw:USB -Phw:USB",
+		//"/usr/bin/jackd -P95 -dalsa -r96000 -p128 -n3 -D -Chw:USB -Phw:USB",
+		"/usr/bin/jackd -P95 -dalsa -r48000 -p128 -n3 -D -Chw:USB -Phw:USB",
 		&jackd_callback,
 		`^ALSA: use \d periods for playback`);
 	start_process("adjmidid",

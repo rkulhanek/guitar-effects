@@ -1,1 +1,1 @@
-/usr/bin/jackd -P95 -dalsa -r96000 -p128 -n3 -D -Chw:USB -Phw:USB
+/usr/bin/jackd -P95 -dalsa -r48000 -p64 -n3 -D -Chw:USB -Phw:USB
