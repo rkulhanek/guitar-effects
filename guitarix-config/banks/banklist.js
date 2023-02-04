@@ -9,7 +9,7 @@
   ["silentz0r", "silentz0r.gx", 1, 0, [1, 2], 1655845163],
   ["AJFA", "AJFA.gx", 1, 0, [1, 2], 1655845126],
   ["80s_Hard_n_Heavy", "80s_Hard_n_Heavy.gx", 1, 0, [1, 2], 1655845092],
-  ["metalpack-v1", "metalpack-v1.gx", 1, 0, [1, 2], 1655844965],
-  ["Presets", "Presets.gx", 1, 0, [1, 2], 1669256887],
-  ["Scratchpad", "scratchpad.gx", 0, 0, [1, 2], 1661029070]
+  ["metalpack-v1", "metalpack-v1.gx", 1, 0, [1, 2], 1674873599],
+  ["Presets", "Presets.gx", 1, 0, [1, 2], 1674874931],
+  ["Scratchpad", "scratchpad.gx", 0, 0, [1, 2], 1674873632]
 ]
